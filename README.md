@@ -4,6 +4,8 @@ Code and data for:
 
 > Zhang Z, Wanney W, Xu Y, Zicola J, Hancock AM, Schmitz RJ\*, Johannes F\*. **Mapping genetic modifiers of epimutation rates reveals a punctuated-equilibrium model of CG methylome evolution.** *bioRxiv* (2025). https://doi.org/10.1101/2025.06.14.659605
 
+[![DOI](https://zenodo.org/badge/1143271024.svg)](https://doi.org/10.5281/zenodo.20384171)
+
 ## Overview
 
 This repository is organized for the **June 2025 preprint version** of the manuscript. It documents how the main preprint figures were generated and provides workflow-level documentation for WGBS preprocessing, epimutation-rate estimation, QTL mapping, ATAC-seq analysis, and RNA-seq analysis.
