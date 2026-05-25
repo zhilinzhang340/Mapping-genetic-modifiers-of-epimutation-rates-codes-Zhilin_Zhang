@@ -265,11 +265,9 @@ Zhang Z., Wanney W., Xu Y., Zicola J., Hancock A. M., Schmitz R. J., and Johanne
 bioRxiv. doi: `10.1101/2025.06.14.659605`
 
 ---
-## Contact
+## Author
 
 Zhilin Zhang, Technical University of Munich
 Email: zhilin.zhang@tum.de; zhangzhilin94@gmail.com 
 
-## License
 
-GPL-3.0
