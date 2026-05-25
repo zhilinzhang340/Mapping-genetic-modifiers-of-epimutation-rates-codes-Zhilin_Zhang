@@ -12,7 +12,7 @@ library(data.table)
 library(ggplot2)
 library(ggpubr)
 
-usec <- fread("/mnt/int/RIL/for_paper/Table/TableSNew_SNPs_within_deletion_global_mCG_level_across_799natural_accessions.txt")
+usec <- fread("/mnt/int/RIL/for_paper/codes_github/data/TableSNew_SNPs_within_deletion_global_mCG_level_across_799natural_accessions.txt")
 
 
 # 确保数据是 data.table 格式
