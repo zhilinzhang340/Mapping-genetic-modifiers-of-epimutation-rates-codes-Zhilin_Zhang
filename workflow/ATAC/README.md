@@ -45,6 +45,17 @@ RIL_meth/
 - Reference genome should be in FASTA format and indexed for BWA.
 - You may need to adjust file paths and software locations within each script before execution.
 
+
+---
+## Citation
+
+Please cite the bioRxiv preprint if you use this repository:
+
+Zhang Z., Wanney W., Xu Y., Zicola J., Hancock A. M., Schmitz R. J., and Johannes F.  
+**Mapping genetic modifiers of epimutation rates reveals a punctuated-equilibrium model of CG methylome evolution.**  
+bioRxiv. doi: `10.1101/2025.06.14.659605`
+
+---
 ## Author
 
 Zhilin Zhang  
