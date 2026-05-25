@@ -1,0 +1,9 @@
+rm(list=ls())
+library("AlphaBeta")
+source("/mnt/nas/zhilin/RIL/run_AB/rscripts/function_run_alphabeta_nstarts_2000_CG_progenitor_intermediate_without_selection_using_newp0uu_rmCM_2023-11.R")
+setwd("/mnt/intStorage/tmpZ/zhilin/RIL/run_AB/node_edg/used_nodelist/global/")
+run.alphabeta.new(nodelist="nodelist_update_RIL4.txt",
+                  edelist="RILRaw_edgelist.txt",
+                  name="RIL4_global_rate",
+                  input.dir="/mnt/intStorage/tmpZ/zhilin/RIL/run_AB/node_edg/used_nodelist/global/",
+                  output.dir="/mnt/intStorage/tmpZ/zhilin/RIL/run_AB/node_edg/used_nodelist/global/")

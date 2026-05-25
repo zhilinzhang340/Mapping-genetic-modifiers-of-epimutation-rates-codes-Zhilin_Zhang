@@ -1,0 +1,503 @@
+---
+title: "Workflow: Methylome Preprocessing, Epimutation-Rate Estimation and QTL Mapping"
+author: "Zhilin Zhang"
+date: "2026-05"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    theme: cosmo
+    code_folding: show
+params:
+  run_code: false
+  project_dir: "/path/to/project"
+  github_repo: "https://github.com/zhilinzhang340/Mapping-genetic-modifiers-of-epimutation-rates-codes-Zhilin_Zhang"
+  zenodo_doi: "To be updated upon Zenodo release"
+  alphabeta_job_table: "metadata/alphabeta_jobs.tsv"
+  alphabeta_out_dir: "results/02_alphabeta"
+  qtl_data_dir: "data/qtl_cross_files"
+  qtl_out_dir: "results/03_qtl_mapping"
+  newbuildPedigree_script: "newbuildPedigree_stand_alone_rmCM_2023_11.R"
+  mCG_cross_file: "newrun_2023-11_68_RIL_all_annotations_mCG_level_without_ID_SNP_markers_after_using_SNP_sliding_windows_cleaning_2025-04.csv"
+  alpha_cross_file: "newrun_2023-11_68_RIL_all_annotations_add_intergeneic_alpha_rate_without_ID_SNP_markers_after_using_SNP_sliding_windows_cleaning_2025-04.csv"
+  beta_cross_file: "newrun_2023-11_68_RIL_all_annotations_add_intergeneic_beta_rate_without_ID_SNP_markers_after_using_SNP_sliding_windows_cleaning_2025-04.csv"
+  qtl_traits: !r c("global", "gene", "TE", "gbM", "UM", "teM", "intergenic")
+  qtl_error_prob: 1e-7
+  qtl_n_perm: 1000
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 11,
+  fig.height = 5
+)
+set.seed(1)
+```
+
+# Overview
+
+This R Markdown notebook documents the complete computational workflow for:
+
+> **"Mapping genetic modifiers of epimutation rates identifies VIM2/4 as dosage-sensitive negative regulators of CG methylation maintenance"** (Zhang et al.)
+
+The pipeline consists of three main steps:
+
+1. **MethylStar**: WGBS read alignment, methylation extraction, and Methimpute methylation-state calling
+2. **AlphaBeta**: Pedigree-based estimation of CG methylation gain rate (alpha) and loss rate (beta)
+3. **R/qtl**: QTL mapping of methylation levels and epimutation rate variation across 68 Ler x Cvi RILs
+
+By default, `params$run_code` is set to `FALSE` so the document can be knitted without access to the full dataset. To rerun the analysis, set `run_code: true` in the YAML header and update all paths under `params`.
+
+## Code and data resources
+
+| Resource | Description | Link |
+|:---------|:------------|:-----|
+| MethylStar | WGBS preprocessing, Bismark alignment, Methimpute calling | <https://github.com/jlab-code/MethylStar> |
+| AlphaBeta | Pedigree-based epimutation rate estimation | <https://github.com/jlab-code/AlphaBeta> |
+| Project code | Analysis scripts and this workflow notebook | `r params$github_repo` |
+| WGBS data | 371 MAML samples (GEO) | [GSE296957](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE296957) |
+
+## Expected input structure
+
+| File or directory | Description |
+|:------------------|:------------|
+| `data/raw_fastq/` | Raw paired-end WGBS FASTQ files |
+| `metadata/sample_metadata_index.tsv` | Sample metadata (sample IDs, RIL IDs, lineage IDs, genotype background, generation, file names) |
+| `metadata/alphabeta_jobs.tsv` | AlphaBeta job table mapping each run to its node list, edge list, annotation class and output prefix |
+| `data/qtl_cross_files/*.csv` | R/qtl cross files with genetic markers and molecular traits |
+| `newbuildPedigree_stand_alone_rmCM_2023_11.R` | Helper script for building AlphaBeta pedigree input |
+
+# Step 1: WGBS Preprocessing and Methylation-State Calling (MethylStar)
+
+[MethylStar](https://github.com/jlab-code/MethylStar) automates the full WGBS preprocessing pipeline: trimming, quality control, Bismark alignment against the TAIR10 reference genome, duplicate removal, methylation extraction, cytosine-call generation, and Methimpute methylation-state calling.
+
+The final output is a set of per-sample Methimpute files containing cytosine-level methylation states classified as unmethylated (U), intermediate (I), or methylated (M), together with posterior probabilities. Only high-confidence calls (`posteriorMax >= 0.99`) were retained for downstream AlphaBeta rate estimation.
+
+## 1.1 Installation
+
+```{bash methylstar-install, eval=FALSE}
+# Option A: install from GitHub
+git clone https://github.com/jlab-code/MethylStar.git
+cd MethylStar
+python2 run.py
+```
+
+## 1.2 MethylStar run settings
+
+Within the MethylStar menu:
+
+- `C. Configuration`: set raw FASTQ directory, output directory, reference genome (TAIR10), and parallelization parameters.
+- `1. Run Pipeline (WGBS)` > `A. Quick Run` > Option `0`: Trimmomatic, QC, Bismark alignment, duplicate removal, methylation extraction, cytosine calls, and Methimpute.
+
+
+A total of 371 MAML samples across 68 Ler x Cvi RILs and two parental MA-lines (Ler-0 and Cvi-0) were processed.
+
+# Step 2: Epimutation-Rate Estimation (AlphaBeta)
+
+[AlphaBeta](https://github.com/jlab-code/AlphaBeta) estimates per-generation CG methylation gain rate (alpha) and loss rate (beta) from pedigree-structured, multi-generational methylation-state data.
+
+## 2.1 Installation
+
+```{r install-alphabeta, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+install.packages("BiocManager")
+BiocManager::install("AlphaBeta")
+```
+
+## 2.2 Input files
+
+Each RIL requires two input files:
+
+**Nodelist** -- lists all samples in the pedigree with their methylome file paths:
+
+| mfile | node | gen |
+|:------|:-----|:----|
+| /path/to/methylome_G02_L1.txt | G02_L1 | 2 |
+| /path/to/methylome_G09_L1.txt | G09_L1 | 9 |
+
+**Edgelist** -- defines parent-offspring relationships:
+
+| from | to |
+|:-----|:---|
+| G02_L1 | G09_L1 |
+
+## 2.3 AlphaBeta wrapper function
+
+The wrapper performs four operations: (1) builds the pedigree object, (2) fits the neutral model (ABneutral), (3) fits the null model (ABnull) and compares by F-test, (4) bootstraps standard errors.
+
+The original analysis was implemented using the following scripts:
+
+- `run_AB_global_rate_check_samples_RIL4.R`
+- `function_run_alphabeta_nstarts_2000_CG_progenitor_intermediate_without_selection_using_newp0uu_rmCM_2023-11.R`
+- `newbuildPedigree_stand_alone_rmCM_2023_11.R`
+
+
+
+```{r alphabeta-wrapper, eval=params$run_code}
+library(AlphaBeta)
+library(data.table)
+
+run_alphabeta_job <- function(nodelist,
+                              edgelist,
+                              job_name,
+                              input_dir,
+                              output_dir,
+                              newbuild_pedigree_script,
+                              cytosine = "CG",
+                              posterior_max_filter = 0.99,
+                              n_starts = 2000,
+                              n_boot = 1000) {
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  source(newbuild_pedigree_script)
+
+  path_node <- file.path(input_dir, nodelist)
+  path_edge <- file.path(input_dir, edgelist)
+  if (!file.exists(path_node)) stop("Node list not found: ", path_node)
+  if (!file.exists(path_edge)) stop("Edge list not found: ", path_edge)
+
+  old_wd <- getwd()
+  on.exit(setwd(old_wd), add = TRUE)
+  setwd(output_dir)
+
+  # --- Visualize pedigree ---
+  plotPedigree(
+    nodelist = path_node, edgelist = path_edge,
+    sampling.design = "progenitor.intermediate",
+    output.dir = output_dir,
+    plot.width = 8, plot.height = 8,
+    aspect.ratio = 0.5, vertex.size = 4, vertex.label = TRUE,
+    out.pdf = paste0("pedigree_", job_name)
+  )
+
+  # --- Build pedigree from methylome files ---
+  ab_input <- newbuildPedigree(
+    path_node, path_edge,
+    cytosine = cytosine,
+    posteriorMaxFilter = posterior_max_filter
+  )
+
+  p0uu_in  <- ab_input$tmpp0
+  pedigree <- ab_input$Pdata
+
+  fwrite(data.table(p0uu = p0uu_in),
+         file.path(output_dir, paste0("p0uu_in_", job_name, ".tsv")), sep = "\t")
+  fwrite(as.data.table(pedigree),
+         file.path(output_dir, paste0("pedigree_pdata_", job_name, ".tsv")), sep = "\t")
+
+  # --- ABneutral model ---
+  output_ABneutral <- ABneutral(
+    pedigree.data = pedigree,
+    p0uu = p0uu_in, eqp = p0uu_in, eqp.weight = 1,
+    Nstarts = n_starts,
+    out.dir = output_dir,
+    out.name = paste0("ABneutral_CG_estimates_", job_name)
+  )
+
+  ABplot(
+    pedigree.names = paste0("ABneutral_CG_estimates_", job_name, ".Rdata"),
+    output.dir = output_dir,
+    out.name = paste0("ABneutral_CG_", job_name),
+    plot.height = 8, plot.width = 11
+  )
+
+  neutral_estimates <- output_ABneutral$estimates[1:10, 1:5] |>
+    as.data.frame() |>
+    tibble::rownames_to_column("parameter") |>
+    as.data.table()
+  fwrite(neutral_estimates,
+         file.path(output_dir, paste0("ABneutral_estimates_", job_name, ".tsv")), sep = "\t")
+
+  # --- Diagnostic plot ---
+  pdf(file.path(output_dir, paste0("ABneutral_pedigree_", job_name, ".pdf")),
+      width = 11, height = 8)
+  plot(output_ABneutral$pedigree[, "delta.t"],
+       output_ABneutral$pedigree[, "div.obs"],
+       xlab = "Divergence time (delta.t)",
+       ylab = "Observed methylation divergence", main = job_name)
+  points(output_ABneutral$for.fit.plot[, "delta.t"],
+         output_ABneutral$for.fit.plot[, "div.sim"], type = "l")
+  dev.off()
+
+  # --- ABnull model and F-test ---
+  output_ABnull <- ABnull(
+    pedigree.data = pedigree,
+    out.dir = output_dir,
+    out.name = paste0("ABnull_CG_estimates_", job_name)
+  )
+
+  ftest <- FtestRSS(
+    pedigree.select = paste0("ABneutral_CG_estimates_", job_name, ".Rdata"),
+    pedigree.null   = paste0("ABnull_CG_estimates_", job_name, ".Rdata")
+  )
+
+  ftest_table <- data.table(job_name = job_name,
+                            ftest_p_value = as.numeric(ftest$Ftest[6]))
+  fwrite(ftest_table,
+         file.path(output_dir, paste0("ABneutral_vs_ABnull_Ftest_", job_name, ".tsv")), sep = "\t")
+
+  # --- Bootstrap standard errors ---
+  boot_output <- BOOTmodel(
+    pedigree.data = paste0("ABneutral_CG_estimates_", job_name, ".Rdata"),
+    Nboot = n_boot,
+    out.dir = output_dir,
+    out.name = paste0("ABneutral_Boot_CG_estimates_", job_name)
+  )
+
+  boot_summary <- data.table(
+    job_name           = job_name,
+    alpha              = boot_output$boot.base$alpha,
+    beta               = boot_output$boot.base$beta,
+    alpha_se           = boot_output$standard.errors[1, 1],
+    beta_se            = boot_output$standard.errors[2, 1],
+    beta_alpha_ratio_se = boot_output$standard.errors[3, 1]
+  )
+  fwrite(boot_summary,
+         file.path(output_dir, paste0("ABneutral_bootstrap_summary_", job_name, ".tsv")), sep = "\t")
+
+  list(
+    job_name = job_name, p0uu = p0uu_in, pedigree = pedigree,
+    neutral = output_ABneutral, null = output_ABnull,
+    ftest = ftest, bootstrap = boot_output, summary = boot_summary
+  )
+}
+```
+
+## 2.4 Batch run: all annotation-specific jobs
+
+The same wrapper is applied to global CG sites and to annotation-specific subsets (gene, gbM, UM, TE, teM, intergenic) via a job table.
+
+```{r expected-job-columns}
+expected_alphabeta_job_cols <- c(
+  "job_name", "cytosine_context", "annotation",
+  "nodelist", "edgelist", "input_dir", "output_dir"
+)
+expected_alphabeta_job_cols
+```
+
+```{r run-alphabeta-jobs, eval=params$run_code}
+job_table <- fread(file.path(params$project_dir, params$alphabeta_job_table))
+
+missing_job_cols <- setdiff(expected_alphabeta_job_cols, names(job_table))
+if (length(missing_job_cols) > 0) {
+  stop("Missing AlphaBeta job-table columns: ", paste(missing_job_cols, collapse = ", "))
+}
+
+newbuild_script <- file.path(params$project_dir, params$newbuildPedigree_script)
+
+alphabeta_results <- lapply(seq_len(nrow(job_table)), function(i) {
+  x <- job_table[i]
+  run_alphabeta_job(
+    nodelist   = x$nodelist,
+    edgelist   = x$edgelist,
+    job_name   = x$job_name,
+    input_dir  = file.path(params$project_dir, x$input_dir),
+    output_dir = file.path(params$project_dir, x$output_dir),
+    newbuild_pedigree_script = newbuild_script,
+    cytosine = x$cytosine_context
+  )
+})
+```
+
+## 2.5 Standalone example: global CG rate estimation
+
+```{r run-global-example, eval=FALSE}
+run_alphabeta_job(
+  nodelist   = "nodelist_update_RIL4.txt",
+  edgelist   = "RILRaw_edgelist.txt",
+  job_name   = "RIL4_global_rate",
+  input_dir  = "data/pedigree/global/",
+  output_dir = "results/02_alphabeta/global/",
+  newbuild_pedigree_script = "newbuildPedigree_stand_alone_rmCM_2023_11.R",
+  cytosine = "CG"
+)
+```
+
+# Step 3: QTL Mapping
+
+QTL scans were performed using the R/qtl package with Haley-Knott regression. The same workflow was applied three times for:
+
+1. **Methylation-level QTL** (steady-state mCG levels, Fig. 2c)
+2. **Alpha-rate QTL** (methylation gain rates, Fig. 3c)
+3. **Beta-rate QTL** (methylation loss rates, Fig. 3c)
+
+Genotypes are coded as `0` (Ler) and `2` (Cvi). The genetic map was re-estimated with `error.prob = 1e-7`. Genome-wide significance thresholds were determined from 1000 permutations. LOD confidence intervals were obtained with `lodint(drop = 2)`.
+
+The original analysis was implemented using the following script:
+
+- `plot_Figure3C.R`
+
+## 3.1 QTL workflow function
+
+```{r qtl-function, eval=params$run_code}
+library(qtl)
+library(data.table)
+library(ggplot2)
+library(scales)
+
+run_single_qtl_workflow <- function(cross_file,
+                                    traits,
+                                    output_prefix,
+                                    output_dir,
+                                    error_prob = 1e-7,
+                                    n_perm = 1000,
+                                    lod_drop = 2,
+                                    method = "hk") {
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!file.exists(cross_file)) stop("Cross file not found: ", cross_file)
+
+  cross <- read.cross(file = cross_file, format = "csv", genotypes = c("0", "2"))
+  cross_map <- est.map(cross, error.prob = error_prob)
+  cross <- replace.map(cross, cross_map)
+  cross <- calc.genoprob(cross, step = 1)
+
+  scan_list   <- list()
+  perm_list   <- list()
+  peak_list   <- list()
+  lodint_list <- list()
+
+  for (trait in traits) {
+    if (!trait %in% names(cross$pheno)) {
+      warning("Trait not found: ", trait)
+      next
+    }
+
+    # Single-QTL scan
+    scan_res <- scanone(cross, pheno.col = trait, method = method)
+    scan_dt  <- as.data.table(scan_res)
+    scan_dt[, trait := trait]
+    setnames(scan_dt, old = "lod", new = "LOD")
+    scan_list[[trait]] <- scan_dt
+
+    # Permutation threshold
+    perm_res   <- scanone(cross, pheno.col = trait, method = method, n.perm = n_perm)
+    cutoff_05  <- as.numeric(summary(perm_res)[1, 1])
+    perm_list[[trait]] <- data.table(trait = trait, alpha = 0.05,
+                                     LOD_threshold = cutoff_05, n_perm = n_perm)
+
+    # Peak and LOD interval
+    peak <- scan_dt[which.max(LOD)]
+    peak[, LOD_threshold := cutoff_05]
+    peak[, significant := LOD >= LOD_threshold]
+    peak_list[[trait]] <- peak
+
+    lodint_res <- tryCatch(
+      as.data.table(lodint(scan_res, chr = peak$chr, drop = lod_drop)),
+      error = function(e) data.table()
+    )
+    if (nrow(lodint_res) > 0) {
+      lodint_res[, trait := trait]
+      lodint_res[, lod_drop := lod_drop]
+    }
+    lodint_list[[trait]] <- lodint_res
+  }
+
+  scan_all   <- rbindlist(scan_list, fill = TRUE)
+  perm_all   <- rbindlist(perm_list, fill = TRUE)
+  peak_all   <- rbindlist(peak_list, fill = TRUE)
+  lodint_all <- rbindlist(lodint_list, fill = TRUE)
+
+  fwrite(scan_all,   file.path(output_dir, paste0(output_prefix, "_scanone_all.tsv")), sep = "\t")
+  fwrite(perm_all,   file.path(output_dir, paste0(output_prefix, "_permutation_thresholds.tsv")), sep = "\t")
+  fwrite(peak_all,   file.path(output_dir, paste0(output_prefix, "_QTL_peaks.tsv")), sep = "\t")
+  fwrite(lodint_all, file.path(output_dir, paste0(output_prefix, "_LOD2_intervals.tsv")), sep = "\t")
+
+  # LOD curve plot
+  p <- ggplot(scan_all, aes(x = pos, y = LOD, color = trait)) +
+    geom_line(linewidth = 0.45) +
+    geom_hline(data = perm_all,
+               aes(yintercept = LOD_threshold, color = trait),
+               linetype = "dashed", linewidth = 0.25, show.legend = FALSE) +
+    facet_wrap(~ chr, nrow = 1, scales = "free_x") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+    labs(title = output_prefix, x = "Genetic position (cM)", y = "LOD", color = "Trait") +
+    theme_classic(base_size = 14) +
+    theme(strip.background = element_blank(), plot.title = element_text(hjust = 0.5))
+
+  ggsave(filename = file.path(output_dir, paste0(output_prefix, "_LOD_curve.pdf")),
+         plot = p, width = 11, height = 5)
+
+  list(cross = cross, scan = scan_all, permutation = perm_all,
+       peaks = peak_all, lodint = lodint_all, plot = p)
+}
+```
+
+## 3.2 Methylation-level QTL (Fig. 2c)
+
+Steady-state mCG levels across genomic compartments were mapped as molecular quantitative traits.
+
+```{r qtl-mcg-level, eval=params$run_code}
+qtl_data_dir <- file.path(params$project_dir, params$qtl_data_dir)
+qtl_out_dir  <- file.path(params$project_dir, params$qtl_out_dir)
+
+qtl_mCG <- run_single_qtl_workflow(
+  cross_file    = file.path(qtl_data_dir, params$mCG_cross_file),
+  traits        = params$qtl_traits,
+  output_prefix = "Fig2c_mCG_level_QTL",
+  output_dir    = file.path(qtl_out_dir, "Fig2c_mCG_level_QTL"),
+  error_prob    = params$qtl_error_prob,
+  n_perm        = params$qtl_n_perm
+)
+qtl_mCG$plot
+```
+
+## 3.3 Alpha-rate QTL (Fig. 3c)
+
+AlphaBeta-estimated methylation gain rates (alpha) were mapped as quantitative traits.
+
+```{r qtl-alpha-rate, eval=params$run_code}
+qtl_alpha <- run_single_qtl_workflow(
+  cross_file    = file.path(qtl_data_dir, params$alpha_cross_file),
+  traits        = params$qtl_traits,
+  output_prefix = "Fig3c_alpha_rate_QTL",
+  output_dir    = file.path(qtl_out_dir, "Fig3c_alpha_rate_QTL"),
+  error_prob    = params$qtl_error_prob,
+  n_perm        = params$qtl_n_perm
+)
+qtl_alpha$plot
+```
+
+## 3.4 Beta-rate QTL (Fig. 3c)
+
+AlphaBeta-estimated methylation loss rates (beta) were mapped as quantitative traits.
+
+```{r qtl-beta-rate, eval=params$run_code}
+qtl_beta <- run_single_qtl_workflow(
+  cross_file    = file.path(qtl_data_dir, params$beta_cross_file),
+  traits        = params$qtl_traits,
+  output_prefix = "Fig3c_beta_rate_QTL",
+  output_dir    = file.path(qtl_out_dir, "Fig3c_beta_rate_QTL"),
+  error_prob    = params$qtl_error_prob,
+  n_perm        = params$qtl_n_perm
+)
+qtl_beta$plot
+```
+
+# Output Summary
+
+| Step | Analysis | Main outputs | Manuscript figure |
+|:-----|:---------|:-------------|:------------------|
+| 1 | WGBS preprocessing | Methimpute cytosine-state files; QC reports | Input for Steps 2-3 |
+| 2 | AlphaBeta rate estimation | ABneutral estimates; F-test tables; bootstrap SEs | Fig. 3a,b |
+| 3 | mCG level QTL | Scanone results; QTL peaks; LOD intervals; LOD-curve PDF | Fig. 2c |
+| 3 | Alpha-rate QTL | Scanone results; QTL peaks; LOD intervals; LOD-curve PDF | Fig. 3c |
+| 3 | Beta-rate QTL | Scanone results; QTL peaks; LOD intervals; LOD-curve PDF | Fig. 3c |
+
+# Reproducibility Notes
+
+- MethylStar was used for WGBS preprocessing and Methimpute methylation-state calling.
+- AlphaBeta was used to estimate genotype-specific CG methylation gain and loss rates from pedigree-structured methylation-state data.
+- QTL mapping was performed with the R package `qtl` (Haley-Knott regression).
+- The genetic map was estimated with `est.map()` using `error.prob = 1e-7`.
+- Genome-wide significance thresholds were estimated from 1000 permutations.
+- LOD confidence intervals were obtained using `lodint(drop = 2)`.
+
+# Session Information
+
+```{r session-info}
+sessionInfo()
+```
