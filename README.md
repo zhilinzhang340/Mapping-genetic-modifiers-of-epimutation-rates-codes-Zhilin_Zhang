@@ -1,10 +1,13 @@
 # Mapping Genetic Modifiers of Epimutation Rates
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20384172.svg)](https://doi.org/10.5281/zenodo.20384172)
+
 Code and data for:
 
 > Zhang Z, Wanney W, Xu Y, Zicola J, Hancock AM, Schmitz RJ\*, Johannes F\*. **Mapping genetic modifiers of epimutation rates reveals a punctuated-equilibrium model of CG methylome evolution.** *bioRxiv* (2025). https://doi.org/10.1101/2025.06.14.659605
 
-[![DOI](https://zenodo.org/badge/1143271024.svg)](https://doi.org/10.5281/zenodo.20384171)
+
+
 
 ## Overview
 
