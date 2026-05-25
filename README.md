@@ -46,7 +46,7 @@ This repository is intended to make the analyses underlying the preprint transpa
 └── workflow/                 # Preprocessing pipelines
     ├── WGBS/                 # WGBS preprocessing, methylation-state calling, AlphaBeta rate estimation, and QTL mapping workflow documentation 
     ├── ATAC/                 # ATAC-seq preprocessing and peak-calling workflow documentation 
-    └── RNAseq/               # RNA-seq preprocessing and expression-analysis workflow documentation 
+    └── RNAseq/               # RNA-seq preprocessing workflow documentation 
 ```
 
 ---
@@ -108,7 +108,7 @@ Detailed pipeline documentation is provided in `workflow/`.
 |:----------|:--------|:----------|
 | `workflow/WGBS/` | WGBS preprocessing, Methimpute calling, AlphaBeta rate estimation, QTL mapping | MethylStar, AlphaBeta, R/qtl |
 | `workflow/ATAC/` | ATAC-seq alignment, peak calling, accessibility divergence analysis | BWA, MACS2, AlphaBeta |
-| `workflow/RNAseq/` | RNA-seq alignment, expression quantification, differential expression |  DESeq2 |
+| `workflow/RNAseq/` | RNA-seq alignment, expression quantification |  HTSeq |
 
 ## Workflow-specific README files
 
@@ -116,7 +116,7 @@ Detailed README files for each sequencing workflow are provided in the correspon
 
 - `workflow/WGBS/README.md`: WGBS preprocessing, methylation-state calling, AlphaBeta epimutation-rate estimation, and QTL mapping.
 - `workflow/ATAC/README.md`: ATAC-seq quality control, trimming, alignment, duplicate removal, peak calling, and accessibility-divergence analysis.
-- `workflow/RNAseq/README.md`: RNA-seq preprocessing, expression quantification, normalization, and downstream expression analyses.
+- `workflow/RNAseq/README.md`: RNA-seq preprocessing and expression quantification.
 
 The top-level README provides an overview of the repository and maps the main manuscript figures to scripts and processed input tables. The workflow-specific README files provide more detailed instructions for each data type.
 
@@ -188,15 +188,13 @@ The RNA-seq workflow is documented in:
 workflow/RNAseq/
 ```
 
-This workflow covers RNA-seq preprocessing, expression quantification, normalization, and downstream expression analyses.
+This workflow covers RNA-seq preprocessing and expression quantifications.
 
 
 Main purpose:
 
 - Process RNA-seq data.
 - Quantify expression.
-- Analyze expression differences between RIL groups.
-- Generate expression tables used for VIM2/4 expression and methylation-regulatory network analyses.
 
 Main downstream figure panels:
 
@@ -226,7 +224,6 @@ Main downstream figure panels:
 | R/qtl | QTL mapping using Haley-Knott regression |
 | BWA | ATAC-seq read alignment |
 | MACS2 | ATAC-seq peak calling |
-| DESeq2 | RNA-seq expression analysis |
 | ggplot2, data.table, dplyr | Data processing and visualization |
 
 ---
