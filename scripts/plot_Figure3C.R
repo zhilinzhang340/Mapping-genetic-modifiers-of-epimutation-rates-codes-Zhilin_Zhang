@@ -344,7 +344,7 @@ lodint(scan_global, chr=1, drop=2)
 # 1_2634      1 187.9566 4.003222   global
 scan_global[250:350,]
 
-post <- fread("/mnt/int/RIL/qtl/data/SNP_matrix/sliding_win_SNP/newrun_2023-11_68RIL_with_position_sliding_windows_200SNP_5SNP_step_for_SNP_matrix_with_counts_0_2_NA_as_equal_matrix.txt")[,1:4]
+post <- fread("/mnt/int/RIL/for_paper/codes_github/data/newrun_2023-11_68RIL_with_position_sliding_windows_200SNP_5SNP_step_for_SNP_matrix_with_counts_0_2_NA_as_equal_matrix.txt")[,1:4]
 start_global <- round(as.numeric(str_split_fixed(str_split_fixed(post[post$tag=="1_2447",]$tag2,"_",2)[,1],"-",2)[,2])/1000000,1)
 end_global <- round(as.numeric(str_split_fixed(str_split_fixed(post[post$tag=="1_2634",]$tag2,"_",2)[,2],"-",2)[,2])/1000000,1)
 
