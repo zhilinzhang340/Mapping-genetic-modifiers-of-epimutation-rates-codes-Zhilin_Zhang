@@ -110,6 +110,15 @@ Detailed pipeline documentation is provided in `workflow/`.
 | `workflow/ATAC/` | ATAC-seq alignment, peak calling, accessibility divergence analysis | BWA, MACS2, AlphaBeta |
 | `workflow/RNAseq/` | RNA-seq alignment, expression quantification, differential expression |  DESeq2 |
 
+## Workflow-specific README files
+
+Detailed README files for each sequencing workflow are provided in the corresponding subdirectories:
+
+- `workflow/WGBS/README.md`: WGBS preprocessing, methylation-state calling, AlphaBeta epimutation-rate estimation, and QTL mapping.
+- `workflow/ATAC/README.md`: ATAC-seq quality control, trimming, alignment, duplicate removal, peak calling, and accessibility-divergence analysis.
+- `workflow/RNAseq/README.md`: RNA-seq preprocessing, expression quantification, normalization, and downstream expression analyses.
+
+The top-level README provides an overview of the repository and maps the main manuscript figures to scripts and processed input tables. The workflow-specific README files provide more detailed instructions for each data type.
 
 ### WGBS workflow
 
