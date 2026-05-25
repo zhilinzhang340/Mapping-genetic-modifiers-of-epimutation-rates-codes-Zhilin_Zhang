@@ -1,6 +1,6 @@
 # Mapping Genetic Modifiers of Epimutation Rates
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20384172.svg)](https://doi.org/10.5281/zenodo.20384172)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20387093.svg)](https://doi.org/10.5281/zenodo.20387093)
 
 Code and data for:
 
