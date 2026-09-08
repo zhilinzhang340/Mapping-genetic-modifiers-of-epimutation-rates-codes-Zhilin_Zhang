@@ -284,11 +284,11 @@ Some panels are schematic or composite figure panels, including experimental-des
 ---
 ## Citation
 
-Please cite the bioRxiv preprint if you use this repository:
+Please cite the published article if you use this repository:
 
-Zhang Z., Wanney W., Xu Y., Zicola J., Hancock A. M., Schmitz R. J., and Johannes F.  
-**Mapping genetic modifiers of epimutation rates reveals a punctuated-equilibrium model of CG methylome evolution.**  
-bioRxiv. doi: `10.1101/2025.06.14.659605`
+Zhang Z., Wanney W., Xu Y., Zicola J., Hancock A. M., Schmitz R. J., and Johannes F.
+Mapping genetic modifiers of epimutation rates identifies VIM2/4 as dosage-sensitive negative regulators of CG methylation maintenance.
+*Nature Plants* (2026). https://doi.org/10.1038/s41477-026-02396-4
 
 ---
 ## Author
